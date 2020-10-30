@@ -29,7 +29,7 @@ buildscript {//properties that you need to build the project
         confidential_id_release_group = "com.r3.corda.lib.ci"
         confidential_id_release_version = "1.0"
 
-        docker_build_image=constants.getProperty("dockerBuildDistribution")+'-java${JavaVersion.current()}-${corda_release_version.toString().toLowerCase()}:latest'
+        docker_build_image=constants.getProperty("dockerBuildDistribution")+"-java${JavaVersion.current()}-${corda_release_version.toString().toLowerCase()}:latest"
     }
 
     repositories {
