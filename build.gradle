@@ -28,6 +28,8 @@ buildscript {//properties that you need to build the project
         use_confidential_id = false
         confidential_id_release_group = "com.r3.corda.lib.ci"
         confidential_id_release_version = "1.0"
+
+        docker_build_image=constants.getProperty("dockerBuildDistribution")+'-java${JavaVersion.current()}-${corda_release_version.toString().toLowerCase()}:latest'
     }
 
     repositories {
@@ -148,12 +150,68 @@ task deployNodes(type: net.corda.plugins.Cordform, dependsOn: ['jar']) {
         if (use_confidential_id.toBoolean()) {
           cordapp("$confidential_id_release_group:ci-workflows:$confidential_id_release_version")
         }
-        
+
         cordapp project(':contracts')
         cordapp project(':workflows')
         runSchemaMigration = true //This configuration is for any CorDapps with custom schema, We will leave this as true to avoid
         //problems for developers who are not familiar with Corda. If you are not using custom schemas, you can change
         //it to false for quicker project compiling time.
+    }
+    node {
+        name "O=Notary,L=London,C=GB"
+        notary = [validating : false]
+        p2pPort 10002
+        rpcSettings {
+            address("localhost:10003")
+            adminAddress("localhost:10043")
+        }
+    }
+    node {
+        name "O=PartyA,L=London,C=GB"
+        p2pPort 10005
+        rpcSettings {
+            address("localhost:10006")
+            adminAddress("localhost:10046")
+        }
+        rpcUsers = [[ user: "user1", "password": "test", "permissions": ["ALL"]]]
+    }
+    node {
+        name "O=PartyB,L=New York,C=US"
+        p2pPort 10008
+        rpcSettings {
+            address("localhost:10009")
+            adminAddress("localhost:10049")
+        }
+        rpcUsers = [[ user: "user1", "password": "test", "permissions": ["ALL"]]]
+    }
+}
+
+//Task to deploy the nodes as a group of docker containers in order to bootstrap a network
+task prepareDockerNodes(type: net.corda.plugins.Dockerform, dependsOn: ['jar']) {
+    dockerImage = "$docker_build_image"
+    // log4j2 does not create top level logs directory on JDK11
+    project.file('logs').mkdirs()
+
+    /* This property will load the CorDapps to each of the node by default, including the Notary. You can find them
+     * in the cordapps folder of the node at build/nodes/Notary/cordapps. However, the notary doesn't really understand
+     * the notion of cordapps. In production, Notary does not need cordapps as well. This is just a short cut to load
+     * the Corda network bootstrapper.
+     */
+    nodeDefaults {
+        projectCordapp {
+            deploy = false
+        }
+        if (use_token_sdk.toBoolean()) {
+          cordapp("$tokens_release_group:tokens-contracts:$tokens_release_version")
+          cordapp("$tokens_release_group:tokens-workflows:$tokens_release_version")
+        }
+
+        if (use_confidential_id.toBoolean()) {
+          cordapp("$confidential_id_release_group:ci-workflows:$confidential_id_release_version")
+        }
+        cordapp project(':contracts')
+        cordapp project(':workflows')
+        runSchemaMigration = true
     }
     node {
         name "O=Notary,L=London,C=GB"
